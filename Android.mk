@@ -16,7 +16,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := activity_recognition.${PRODUCT_DEVICE}
+LOCAL_MODULE := activity_recognition.bullhead
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 
