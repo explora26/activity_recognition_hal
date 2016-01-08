@@ -54,18 +54,40 @@ static void activity_recognition_event_report(activity_event_t* events, int coun
 
 void *read_task(void* ptr)
 {
-    activity_event_t test_event;
-
-    test_event.event_type = ACTIVITY_EVENT_ENTER;
-    test_event.activity = 0;
-    test_event.timestamp = 0;
     struct timespec t;
+    unsigned char tmp[128];
+    unsigned int *buf;
+
+    int ret;
+    int event_count;
+    int i;
+
+    activity_event_t *report_event;
 
     while(1) {
+    	if (fd < 0) {
 
-        clock_gettime(CLOCK_BOOTTIME, &t);
-        t.tv_sec * NS_PER_SEC + t.tv_nsec;
-        activity_recognition_event_report(&test_event, 1);
+            sleep(1);
+            continue;
+    	}
+        ret = read(fd, buf, 128);
+
+        event_count = ret / 2;
+
+        if (event_count) {
+        	buf = (unsigned int *)tmp;
+            clock_gettime(CLOCK_BOOTTIME, &t);
+            report_event = (activity_event_t*) malloc(sizeof(activity_event_t) * event_count);
+            for (i = 0; i < event_count; i++) {
+                // buf[0] event_type, buf[1] activity, buf[2] event_type, buf[3] activity, ....
+                (report_event + i)->event_type = buf[0 + (i * 2)];
+                (report_event + i)->activity = buf[1 + (i * 2)];
+                (report_event + i)->timestamp = t.tv_sec * NS_PER_SEC + t.tv_nsec;
+            }
+
+            activity_recognition_event_report(report_event, event_count);
+            free(report_event);
+        }
         sleep(1);
     }
 }
@@ -80,13 +102,13 @@ void activity_recognition_register_callback(const struct activity_recognition_de
 int activity_recognition_enable(const struct activity_recognition_device* dev,
         uint32_t activity_handle, uint32_t event_type, int64_t max_batch_report_latency_ns)
 {
-    ALOGE("%s", __func__);
+    ALOGE("activity_recognition_enable activity_handle:%d event_type:%d ", activity_handle, event_type);
 
     uint32_t buf[5];
+
     buf[0] = 1; //enable
     buf[1] = event_type;
     buf[2] = activity_handle;
-    *((int64_t*)(buf + 3)) = max_batch_report_latency_ns;
 
     write(fd, buf, 20);
 
@@ -97,8 +119,8 @@ int activity_recognition_enable(const struct activity_recognition_device* dev,
 int activity_recognition_disable(const struct activity_recognition_device* dev,
         uint32_t activity_handle, uint32_t event_type)
 {
-    ALOGE("%s", __func__);
 
+    ALOGE("activity_recognition_disable activity_handle:%d event_type:%d ", activity_handle, event_type);
     uint32_t buf[5];
     buf[0] = 0; //disable
     buf[1] = event_type;
@@ -171,6 +193,9 @@ static int open_activity_recognition(const struct hw_module_t* module, const cha
     *device = &dev->common;
 
     fd = open("/dev/spich2", O_RDWR);
+    if (fd < 0) {
+    	ALOGE("device open fail %d", fd);
+    }
 
     pthread_create(&read_thread, NULL, read_task, NULL);
 
