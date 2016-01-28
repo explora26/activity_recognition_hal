@@ -16,7 +16,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := activity_recognition.${PRODUCT_DEVICE}
+LOCAL_MODULE := activity_recognition.bullhead
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 
@@ -24,8 +24,12 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_CFLAGS := -DLOG_TAG=\"ActivityRecognition\"
 
-LOCAL_SRC_FILES := activity_recognition.cpp
+LOCAL_SRC_FILES := activity_recognition.cpp SensorListener.cpp
 
-LOCAL_SHARED_LIBRARIES := liblog libutils libdl
+LOCAL_SHARED_LIBRARIES := liblog libutils libdl libandroid \
+    libui \
+    libbinder \
+    libcutils \
+    libgui \
 
 include $(BUILD_SHARED_LIBRARY)
