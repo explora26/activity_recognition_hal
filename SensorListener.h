@@ -21,22 +21,22 @@
 *
 */
 
-#ifndef ANDROID_CAMERA_HARDWARE_SENSOR_LISTENER_H
-#define ANDROID_CAMERA_HARDWARE_SENSOR_LISTENER_H
+#ifndef ANDROID_ACTIVITY_RECOGNITION_LISTENER_H
+#define ANDROID_ACTIVITY_RECOGNITION_LISTENER_H
 
 #include <android/sensor.h>
 #include <gui/Sensor.h>
 #include <gui/SensorManager.h>
 #include <gui/SensorEventQueue.h>
 #include <utils/Looper.h>
+#include <hardware/activity_recognition.h>
+#include "activity_recognition_hal.h"
 
 namespace android {
 
 /**
  * SensorListner class - Registers with sensor manager to get sensor events
  */
-
-typedef void (*orientation_callback_t) (uint32_t orientation, uint32_t tilt, void* cookie);
 
 class SensorLooperThread : public Thread {
     public:
@@ -66,31 +66,28 @@ class SensorListener : public RefBase
 {
 /* public - types */
 public:
-    typedef enum {
-        SENSOR_ACCELEROMETER  = 1 << 0,
-        SENSOR_MAGNETIC_FIELD = 1 << 1,
-        SENSOR_GYROSCOPE      = 1 << 2,
-        SENSOR_LIGHT          = 1 << 3,
-        SENSOR_PROXIMITY      = 1 << 4,
-        SENSOR_ORIENTATION    = 1 << 5,
-    } sensor_type_t;
+    struct sensorEnabled {
+        bool type[2];
+    };
+
+    struct sensorEnabled enabledList[6];
 /* public - functions */
 public:
     SensorListener();
     ~SensorListener();
     status_t initialize();
-    void setCallbacks(orientation_callback_t orientation_cb, void *cookie);
-    void enableSensor(sensor_type_t type);
-    void disableSensor(sensor_type_t type);
-    void handleOrientation(uint32_t orientation, uint32_t tilt);
+    void setCallbacks(activity_recognition_callback_procs_t *activity_recognition_cb);
+    int enableSensor(uint32_t activity_handle, uint32_t event_type, int report_latency_us);
+    int disableSensor(uint32_t activity_handle, uint32_t event_type);
+    int flush();
+    activity_recognition_callback_procs_t* getCallBack();
+
 /* public - member variables */
 public:
     sp<SensorEventQueue> mSensorEventQueue;
 /* private - member variables */
 private:
-    int sensorsEnabled;
-    orientation_callback_t mOrientationCb;
-    void *mCbCookie;
+    activity_recognition_callback_procs_t *mActivity_recognition_cb;
     sp<Looper> mLooper;
     sp<SensorLooperThread> mSensorLooperThread;
     Mutex mLock;

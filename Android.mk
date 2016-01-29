@@ -24,7 +24,7 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_CFLAGS := -DLOG_TAG=\"ActivityRecognition\"
 
-LOCAL_SRC_FILES := activity_recognition.cpp SensorListener.cpp
+LOCAL_SRC_FILES := activity_recognition_hal.cpp SensorListener.cpp
 
 LOCAL_SHARED_LIBRARIES := liblog libutils libdl libandroid \
     libui \

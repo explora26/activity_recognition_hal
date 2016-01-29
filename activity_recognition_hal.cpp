@@ -21,33 +21,18 @@
 #include <android/sensor.h>
 #include <hardware/hardware.h>
 #include <hardware/activity_recognition.h>
+#include "activity_recognition_hal.h"
+#include "SensorListener.h"
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #endif
 
-enum {
-    IN_VEHICLE = 0,
-    ON_BICYCLE,
-    WALKING,
-    RUNNING,
-    STILL,
-    TILTING,
-    NUM_OF_ACTIVITY,
-};
+using namespace android;
 
 static activity_recognition_callback_procs_t activity_recognition_callback;
 
-static ASensorManager* sensorManager;
-static const ASensor* accelerometerSensor;
-static ASensorEventQueue* sensorEventQueue;
-static ALooper* looper;
-static bool enabled = false;
-static bool has_init = false;
-
-static pthread_t read_thread;
-
-
+static android::sp<SensorListener> mSensorListener;
 
 static void activity_recognition_event_report(activity_event_t* events, int count) {
     activity_recognition_callback.activity_callback(&activity_recognition_callback, events, count);
@@ -57,51 +42,14 @@ void activity_recognition_register_callback(const struct activity_recognition_de
         const activity_recognition_callback_procs_t* callback)
 {
     activity_recognition_callback = *callback;
-}
 
-void *read_task(void* ptr) {
-    ASensorEvent event;
-    activity_event_t activity_event;
-
-    while (1) {
-        while (ASensorEventQueue_getEvents(sensorEventQueue, &event, 1) > 0) {
-            if (event.type == ASENSOR_TYPE_ACCELEROMETER) {
-                activity_event.event_type = 1;
-                activity_event.activity = 0;
-                activity_event.timestamp = event.timestamp;
-                activity_recognition_event_report(&activity_event, 1);
-            }
-        }
-    }
+    mSensorListener->setCallbacks(&activity_recognition_callback);
 }
 
 int activity_recognition_enable(const struct activity_recognition_device* dev,
         uint32_t activity_handle, uint32_t event_type, int64_t max_batch_report_latency_ns)
 {
-
-    if (!has_init) {
-        looper = ALooper_forThread();
-        if(looper == NULL) {
-            looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
-        }
- 
-        sensorManager = ASensorManager_getInstance();
-        accelerometerSensor = ASensorManager_getDefaultSensor(sensorManager,
-                ASENSOR_TYPE_ACCELEROMETER);
-        sensorEventQueue = ASensorManager_createEventQueue(sensorManager,
-                looper, 3, NULL, NULL);
-
-        pthread_create(&read_thread, NULL, read_task, NULL);
-        has_init = true;
-    }
-
-    if (activity_handle == 0 && event_type == 1) {
-        if (!enabled) {
-            ASensorEventQueue_enableSensor(sensorEventQueue, accelerometerSensor);
-            ASensorEventQueue_setEventRate(sensorEventQueue, accelerometerSensor, 100000);
-            enabled = true;
-        }
-    }
+    mSensorListener->enableSensor(activity_handle, event_type, ns2us(max_batch_report_latency_ns));
 
     return 0;
 }
@@ -109,24 +57,22 @@ int activity_recognition_enable(const struct activity_recognition_device* dev,
 int activity_recognition_disable(const struct activity_recognition_device* dev,
         uint32_t activity_handle, uint32_t event_type)
 {
-    if (activity_handle == 0 && event_type == 1) {
-        if (enabled) {
-            ASensorEventQueue_disableSensor(sensorEventQueue, accelerometerSensor);
-            enabled = false;
-        }
-    }
+    mSensorListener->disableSensor(activity_handle, event_type);
 
     return 0;
 }
 
 int activity_recognition_flush(const struct activity_recognition_device* dev)
 {
+    mSensorListener->flush();
 
     return 0;
 }
 
 static int close_activity_recognition(hw_device_t *dev)
 {
+	mSensorListener.clear();
+	mSensorListener = NULL;
     free(dev);
 
     return 0;
@@ -158,6 +104,15 @@ static int open_activity_recognition(const struct hw_module_t* module, const cha
 
     if (!dev)
         return -ENOMEM;
+
+    mSensorListener = new SensorListener();
+    if (mSensorListener.get()) {
+        if (mSensorListener->initialize() != NO_ERROR) {
+            mSensorListener.clear();
+            mSensorListener = NULL;
+            return -EINVAL;
+        }
+    }   
 
     memset(dev, 0, sizeof(activity_recognition_device_t));
 
